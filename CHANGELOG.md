@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.1] - 2026-03-11
+
+### Changed
+
+- Synced the repository homepage and project documentation to reflect the current monitoring scope, Codex local-usage behavior, launch commands, and build requirements.
+- Lowered the Swift tools version declaration for CI compatibility while preserving the current application feature set.
+- Updated the GitHub Actions macOS runner configuration so repository builds succeed again on GitHub.
+
 ## [0.5.0] - 2026-03-11
 
 ### Added

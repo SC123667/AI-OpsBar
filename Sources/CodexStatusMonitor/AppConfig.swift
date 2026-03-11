@@ -6,7 +6,7 @@ enum AppConfig {
     static let degradedRefreshInterval: TimeInterval = 45
     static let timerToleranceRatio: Double = 0.25
     static let requestTimeout: TimeInterval = 4
-    static let userAgent = "AIOpsBar/0.5.0"
+    static let userAgent = "AIOpsBar/0.5.1"
     static let bundleIdentifier = "com.sc123667.aiopsbar"
     static let keychainService = "com.sc123667.aiopsbar"
     static let keychainAccount = "openai_api_key"

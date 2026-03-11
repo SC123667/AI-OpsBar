@@ -4,6 +4,8 @@ English | [简体中文](#简体中文)
 
 ## English
 
+Current release: `0.5.1`
+
 AI OpsBar is a native macOS menu bar utility for monitoring whether major AI products and APIs are reachable and actually usable from your current network.
 
 It is designed for users who work across multiple AI services and want one lightweight status bar tool for:
@@ -49,6 +51,12 @@ For supported providers, AI OpsBar can also verify API usability when you provid
 - Bilingual UI: English and Simplified Chinese
 - Default language follows macOS system language
 
+### Build requirements
+
+- macOS 13 or later
+- Swift Package Manager with a Swift toolchain compatible with Swift 5.10 or later
+- No full Xcode project is required for local development
+
 ### Product behavior
 
 - Left-click the menu bar icon to open the quick status popover
@@ -81,6 +89,7 @@ For supported providers, AI OpsBar can also verify API usability when you provid
 2. Add API keys for the providers you want to verify beyond simple web reachability.
 3. Use left click for the quick health popover and right click for the grouped context menu.
 4. Open the dashboard to manage custom services, proxies, notifications, and launch-at-login.
+5. For Codex, wait until local session logs accumulate before expecting different values across `5h`, `1d`, `7d`, `30d`, and `all`.
 
 ### Build and run
 
@@ -113,6 +122,7 @@ open -na "/Users/cwn/Desktop/所有文件夹/一些实用小工具/AI-OpsBar/dis
 - Some providers currently use web-level reachability checks only, because a stable public API path suitable for generic availability testing is not available.
 - Codex local spend currently depends on what the local session logs expose. On machines where only token usage is available, AI OpsBar shows token windows instead of USD cost.
 - Codex window totals can be identical across `5h`, `1d`, `7d`, `30d`, and `all` when your local logs all fall within the latest 5 hours; that is expected behavior, not a UI bug.
+- The GitHub repository homepage, release notes, and local build script are intended to track the same feature set and version line. This README is the canonical overview.
 
 ### Planned roadmap
 
@@ -124,6 +134,8 @@ open -na "/Users/cwn/Desktop/所有文件夹/一些实用小工具/AI-OpsBar/dis
 ---
 
 ## 简体中文
+
+当前版本：`0.5.1`
 
 AI OpsBar 是一个原生 macOS 状态栏工具，用来监控当前网络下主流 AI 产品和 API 是否可连通、是否真正可用。
 
@@ -170,6 +182,12 @@ AI OpsBar 目前可检测：
 - 中英双语界面
 - 默认语言跟随 macOS 系统语言
 
+### 构建要求
+
+- macOS 13 或更高版本
+- 兼容 Swift 5.10 及以上工具链的 Swift Package Manager
+- 本地开发不需要完整 Xcode 工程
+
 ### 产品行为
 
 - 左键点击状态栏图标打开快速状态浮层
@@ -202,6 +220,7 @@ AI OpsBar 目前可检测：
 2. 给你想深度校验的服务填入 API Key，这样监控不只是网页能不能打开。
 3. 左键看快速健康状态，右键看分组菜单。
 4. 在完整面板里管理自定义服务、代理、通知和开机启动。
+5. 对 Codex 来说，先有足够的本地 session 日志，`5小时 / 1天 / 7天 / 1个月 / 全部` 这些窗口才会自然拉开。
 
 ### 运行与打包
 
@@ -234,6 +253,7 @@ open -na "/Users/cwn/Desktop/所有文件夹/一些实用小工具/AI-OpsBar/dis
 - 部分服务目前只做网页级连通性检测，因为没有适合通用可用性探测的稳定公开 API 入口。
 - Codex 的本地金额能力取决于本机 session 日志里暴露的数据；如果本地只有 token 用量而没有 USD 成本，AI OpsBar 会显示 token 窗口。
 - 如果本机所有 Codex 本地日志都落在最近 5 小时内，那么 `5小时 / 1天 / 7天 / 1个月 / 全部` 这些窗口出现相同数值是正常现象，不是 UI 出错。
+- GitHub 仓库主页、更新日志和本地打包脚本会尽量保持同一套版本与功能描述；这份 README 是当前最完整的总说明。
 
 ### 后续计划
 
