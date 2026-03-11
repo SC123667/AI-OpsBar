@@ -4,12 +4,18 @@ import Combine
 @MainActor
 final class StatusMenuController: NSObject {
     private let appState: AppState
-    private let openDashboard: () -> Void
+    private let openDashboard: (NSStatusBarButton?) -> Void
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let contextMenu = NSMenu()
+    private lazy var quickPopoverController = QuickStatusPopoverController(
+        appState: appState,
+        openDashboard: { [weak self] in
+            self?.openDashboard(self?.statusItem.button)
+        }
+    )
     private var cancellables = Set<AnyCancellable>()
 
-    init(appState: AppState, openDashboard: @escaping () -> Void) {
+    init(appState: AppState, openDashboard: @escaping (NSStatusBarButton?) -> Void) {
         self.appState = appState
         self.openDashboard = openDashboard
     }
@@ -23,9 +29,25 @@ final class StatusMenuController: NSObject {
         button.imageScaling = .scaleProportionallyDown
         button.toolTip = appState.snapshot.overallState.summary
         button.image = statusImage(for: appState.snapshot.overallState)
-        statusItem.menu = contextMenu
+        button.target = self
+        button.action = #selector(handleStatusItemClick(_:))
+        button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         observeState()
         rebuildMenu()
+    }
+
+    @objc
+    func handleStatusItemClick(_ sender: Any?) {
+        guard let event = NSApp.currentEvent else {
+            return
+        }
+
+        switch event.type {
+        case .rightMouseUp:
+            showContextMenu()
+        default:
+            quickPopoverController.toggle(relativeTo: statusItem.button)
+        }
     }
 
     @objc
@@ -35,64 +57,41 @@ final class StatusMenuController: NSObject {
 
     @objc
     func showDashboard(_ sender: Any?) {
-        openDashboard()
+        quickPopoverController.close()
+        DispatchQueue.main.async { [weak self] in
+            self?.openDashboard(self?.statusItem.button)
+        }
     }
 
     @objc
     func configureAPIKey(_ sender: Any?) {
-        let account = (sender as? NSMenuItem)?.representedObject as? String ?? AppConfig.keychainAccount
-        let serviceName = (sender as? NSMenuItem)?.title.replacingOccurrences(of: "Set ", with: "").replacingOccurrences(of: " API Key", with: "") ?? "OpenAI"
-
-        let alert = NSAlert()
-        alert.messageText = "\(serviceName) API Key"
-        alert.informativeText = L10n.text(.apiKeyDialogMessage)
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: L10n.text(.save))
-        alert.addButton(withTitle: L10n.text(.cancel))
-
-        let input = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
-        input.placeholderString = KeychainHelper.loadAPIKey(account: account) == nil ? L10n.text(.apiKeyPlaceholder) : L10n.text(.apiKeyReplacePlaceholder)
-        alert.accessoryView = input
-
-        guard alert.runModal() == .alertFirstButtonReturn else {
+        guard let definition = representedDefinition(from: sender) else {
             return
         }
 
-        let value = input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard !value.isEmpty else {
-            showInfoAlert(title: L10n.text(.apiKeyNotSaved), message: L10n.text(.emptyField))
-            return
-        }
-
-        let status = KeychainHelper.saveAPIKey(value, account: account)
-
-        guard status == errSecSuccess else {
-            showInfoAlert(title: L10n.text(.failedSaveAPIKey), message: "Keychain returned status \(status).")
-            return
-        }
-
-        appState.statusMessage = L10n.text(.apiKeySaved)
-        appState.refreshNow()
+        appState.promptForAPIKey(for: definition)
     }
 
     @objc
     func clearAPIKey(_ sender: Any?) {
-        let account = (sender as? NSMenuItem)?.representedObject as? String ?? AppConfig.keychainAccount
-        let status = KeychainHelper.deleteAPIKey(account: account)
-
-        guard status == errSecSuccess || status == errSecItemNotFound else {
-            showInfoAlert(title: L10n.text(.failedClearAPIKey), message: "Keychain returned status \(status).")
+        guard let definition = representedDefinition(from: sender) else {
             return
         }
 
-        appState.statusMessage = L10n.text(.apiKeyRemoved)
-        appState.refreshNow()
+        appState.clearAPIKey(for: definition)
     }
 
     @objc
     func quit(_ sender: Any?) {
         NSApplication.shared.terminate(nil)
+    }
+
+    private func representedDefinition(from sender: Any?) -> ServiceDefinition? {
+        guard let rawValue = (sender as? NSMenuItem)?.representedObject as? String else {
+            return nil
+        }
+
+        return appState.definition(for: ServiceID(rawValue: rawValue))
     }
 
     private func observeState() {
@@ -118,6 +117,24 @@ final class StatusMenuController: NSObject {
                 self?.rebuildMenu()
             }
             .store(in: &cancellables)
+
+        appState.$serviceSummaries
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.rebuildMenu()
+            }
+            .store(in: &cancellables)
+    }
+
+    private func showContextMenu() {
+        rebuildMenu()
+        guard let button = statusItem.button else {
+            return
+        }
+
+        statusItem.menu = contextMenu
+        button.performClick(nil)
+        statusItem.menu = nil
     }
 
     private func rebuildMenu() {
@@ -135,7 +152,7 @@ final class StatusMenuController: NSObject {
 
         contextMenu.addItem(.separator())
 
-        if appState.snapshot.results.isEmpty {
+        if appState.serviceSummaries.isEmpty {
             let checkingItem = NSMenuItem(title: L10n.text(.waitingFirstProbeMenu), action: nil, keyEquivalent: "")
             checkingItem.isEnabled = false
             contextMenu.addItem(checkingItem)
@@ -163,7 +180,7 @@ final class StatusMenuController: NSObject {
     }
 
     private func addGroupedServiceSections() {
-        let groups = appState.groupedServiceSummaries()
+        let groups = appState.menuGroupedServiceSummaries()
 
         for (index, group) in groups.enumerated() {
             let groupHeader = NSMenuItem(title: group.group.title, action: nil, keyEquivalent: "")
@@ -190,9 +207,16 @@ final class StatusMenuController: NSObject {
 
         let submenu = NSMenu()
 
-        let summaryItem = NSMenuItem(title: summary.lastFailureSummary, action: nil, keyEquivalent: "")
+        let summaryItem = NSMenuItem(title: summary.issueCount > 0 ? summary.lastFailureSummary : summary.quotaSummary, action: nil, keyEquivalent: "")
         summaryItem.isEnabled = false
         submenu.addItem(summaryItem)
+
+        if !summary.recentHistory.isEmpty {
+            let historyItem = NSMenuItem(title: "\(L10n.text(.historyTitle)): \(historyGlyphs(from: summary.recentHistory.suffix(10)))", action: nil, keyEquivalent: "")
+            historyItem.isEnabled = false
+            submenu.addItem(historyItem)
+        }
+
         submenu.addItem(.separator())
 
         for probe in summary.probes {
@@ -209,43 +233,39 @@ final class StatusMenuController: NSObject {
         return item
     }
 
-    private func showInfoAlert(title: String, message: String) {
-        let alert = NSAlert()
-        alert.messageText = title
-        alert.informativeText = message
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: L10n.text(.ok))
-        alert.runModal()
+    private func historyGlyphs(from samples: ArraySlice<ServiceHistorySample>) -> String {
+        samples.map { sample in
+            switch sample.state {
+            case .pass:
+                return "●"
+            case .warning:
+                return "◐"
+            case .fail:
+                return "○"
+            }
+        }.joined()
     }
 
     private func apiKeysMenuItem() -> NSMenuItem {
-        let item = NSMenuItem(title: "API Keys", action: nil, keyEquivalent: "")
+        let item = NSMenuItem(title: L10n.text(.menuAPIKeys), action: nil, keyEquivalent: "")
         let submenu = NSMenu()
 
-        let codexSet = NSMenuItem(title: "Set OpenAI API Key", action: #selector(configureAPIKey(_:)), keyEquivalent: "")
-        codexSet.representedObject = AppConfig.keychainAccount
-        codexSet.target = self
-        submenu.addItem(codexSet)
+        let definitions = ServiceDefinitions.all(settings: appState.settings)
+            .filter { $0.apiProbe?.keychainAccount != nil }
+            .sorted { $0.name < $1.name }
 
-        let codexClear = NSMenuItem(title: "Clear OpenAI API Key", action: #selector(clearAPIKey(_:)), keyEquivalent: "")
-        codexClear.representedObject = AppConfig.keychainAccount
-        codexClear.target = self
-        submenu.addItem(codexClear)
-
-        for definition in ServiceDefinitions.all {
-            guard let account = definition.apiProbe?.keychainAccount else {
-                continue
+        for (index, definition) in definitions.enumerated() {
+            if index > 0 {
+                submenu.addItem(.separator())
             }
 
-            submenu.addItem(.separator())
-
-            let setItem = NSMenuItem(title: "Set \(definition.name) API Key", action: #selector(configureAPIKey(_:)), keyEquivalent: "")
-            setItem.representedObject = account
+            let setItem = NSMenuItem(title: "\(L10n.text(.manageAPIKey)) \(definition.name)", action: #selector(configureAPIKey(_:)), keyEquivalent: "")
+            setItem.representedObject = definition.id.rawValue
             setItem.target = self
             submenu.addItem(setItem)
 
-            let clearItem = NSMenuItem(title: "Clear \(definition.name) API Key", action: #selector(clearAPIKey(_:)), keyEquivalent: "")
-            clearItem.representedObject = account
+            let clearItem = NSMenuItem(title: "\(L10n.text(.clearSavedAPIKey)) \(definition.name)", action: #selector(clearAPIKey(_:)), keyEquivalent: "")
+            clearItem.representedObject = definition.id.rawValue
             clearItem.target = self
             submenu.addItem(clearItem)
         }

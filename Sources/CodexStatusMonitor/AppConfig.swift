@@ -6,12 +6,14 @@ enum AppConfig {
     static let degradedRefreshInterval: TimeInterval = 45
     static let timerToleranceRatio: Double = 0.25
     static let requestTimeout: TimeInterval = 4
-    static let userAgent = "AIOpsBar/0.3"
+    static let userAgent = "AIOpsBar/0.5.0"
     static let bundleIdentifier = "com.sc123667.aiopsbar"
     static let keychainService = "com.sc123667.aiopsbar"
     static let keychainAccount = "openai_api_key"
     static let launchAgentLabel = "com.sc123667.aiopsbar.launch"
     static let settingsKey = "ai_opsbar.settings"
+    static let historyKey = "ai_opsbar.history"
+    static let historySampleLimit = 72
 
     static let appSignInURL = URL(string: "https://chatgpt.com")!
     static let codexWebURL = URL(string: "https://chatgpt.com/codex")!

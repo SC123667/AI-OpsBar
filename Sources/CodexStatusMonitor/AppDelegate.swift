@@ -6,8 +6,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var dashboardWindowController = DashboardWindowController(appState: appState)
     private lazy var statusMenuController = StatusMenuController(
         appState: appState,
-        openDashboard: { [weak self] in
-            self?.dashboardWindowController.showAndActivate()
+        openDashboard: { [weak self] button in
+            self?.dashboardWindowController.showAndActivate(relativeTo: button)
         }
     )
 
